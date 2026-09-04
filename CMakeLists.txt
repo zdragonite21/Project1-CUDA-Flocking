@@ -23,8 +23,8 @@ endif()
 
 find_package(OpenGL REQUIRED)
 
+include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 if(UNIX)
-    include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
     find_package(glfw3 REQUIRED)
     find_package(GLEW REQUIRED)
     set(GL_LIBRARIES glfw ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES})
