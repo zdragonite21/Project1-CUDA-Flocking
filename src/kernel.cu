@@ -463,8 +463,9 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
 
 __device__ glm::vec3 computeVelocityChangeNeighborSearch(
     int N, int iSelf, int gridResolution, glm::vec3 gridMin,
-    float inverseCellWidth, int *gridCellStartIndices, int *gridCellEndIndices,
-    int *particleArrayIndices, const glm::vec3 *pos, const glm::vec3 *vel) {
+    float inverseCellWidth, float cellWidth, int *gridCellStartIndices,
+    int *gridCellEndIndices, int *particleArrayIndices, const glm::vec3 *pos,
+    const glm::vec3 *vel) {
     // Rule 1: boids fly towards their local perceived center of mass, which
     // excludes themselves Rule 2: boids try to stay a distance d away from each
     // other Rule 3: boids try to match the speed of surrounding boids
@@ -481,9 +482,16 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearch(
     glm::vec3 bpos = pos[iSelf];
     glm::vec3 boff = bpos - gridMin;
     glm::ivec3 bgrid_idx = (glm::ivec3)(boff * inverseCellWidth);
-    for (int z = -1; z <= 1; ++z) {
-        for (int y = -1; y <= 1; ++y) {
-            for (int x = -1; x <= 1; ++x) {
+
+    glm::vec3 cell_off = bpos - (glm::vec3)bgrid_idx;
+    glm::vec3 center_dir = 2.f * cell_off - glm::vec3(cellWidth);
+    glm::ivec3 cell_corner = glm::sign(center_dir);
+    glm::ivec3 cell_st = glm::min(cell_corner, glm::ivec3(0));
+    glm::ivec3 cell_ed = glm::max(cell_corner, glm::ivec3(0));
+
+    for (int z = cell_st.z; z <= cell_ed.z; ++z) {
+        for (int y = cell_st.y; y <= cell_ed.y; ++y) {
+            for (int x = cell_st.x; x <= cell_ed.x; ++x) {
                 glm::ivec3 ngrid_idx = bgrid_idx + glm::ivec3(x, y, z);
                 int ngrid_id = gridIndex3Dto1D(ngrid_idx.x, ngrid_idx.y,
                                                ngrid_idx.z, gridResolution);
@@ -562,7 +570,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     glm::vec3 bvel =
         vel1[index] + computeVelocityChangeNeighborSearch(
                           N, index, gridResolution, gridMin, inverseCellWidth,
-                          gridCellStartIndices, gridCellEndIndices,
+                          cellWidth, gridCellStartIndices, gridCellEndIndices,
                           particleArrayIndices, pos, vel1);
     float speed2 = glm::length2(bvel);
     vel2[index] = speed2 <= maxSpeed * maxSpeed
@@ -572,8 +580,8 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 
 __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     int N, int iSelf, int gridResolution, glm::vec3 gridMin,
-    float inverseCellWidth, int *gridCellStartIndices, int *gridCellEndIndices,
-    const glm::vec3 *pos, const glm::vec3 *vel) {
+    float inverseCellWidth, float cellWidth, int *gridCellStartIndices,
+    int *gridCellEndIndices, const glm::vec3 *pos, const glm::vec3 *vel) {
     // Rule 1: boids fly towards their local perceived center of mass, which
     // excludes themselves Rule 2: boids try to stay a distance d away from each
     // other Rule 3: boids try to match the speed of surrounding boids
@@ -591,9 +599,16 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     glm::vec3 boff = bpos - gridMin;
     glm::ivec3 bgrid_idx = (glm::ivec3)(boff * inverseCellWidth);
 
-    for (int z = -1; z <= 1; ++z) {
-        for (int y = -1; y <= 1; ++y) {
-            for (int x = -1; x <= 1; ++x) {
+    glm::vec3 cell_off = bpos - (glm::vec3)bgrid_idx;
+    glm::vec3 center_dir = 2.f * cell_off - glm::vec3(cellWidth);
+    glm::ivec3 cell_corner = glm::sign(center_dir);
+    glm::ivec3 cell_st = glm::min(cell_corner, glm::ivec3(0));
+    glm::ivec3 cell_ed = glm::max(cell_corner, glm::ivec3(0));
+
+    for (int z = cell_st.z; z <= cell_ed.z; ++z) {
+        for (int y = cell_st.y; y <= cell_ed.y; ++y) {
+            for (int x = cell_st.x; x <= cell_ed.x; ++x) {
+                glm::ivec3 offset = glm::ivec3(x, y, z);
                 glm::ivec3 ngrid_idx = bgrid_idx + glm::ivec3(x, y, z);
                 if (glm::any(glm::lessThan(ngrid_idx, glm::ivec3(0))) ||
                     glm::any(glm::greaterThanEqual(
@@ -675,7 +690,8 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
     glm::vec3 bvel =
         vel1[index] + computeVelocityChangeNeighborSearchCoherent(
                           N, index, gridResolution, gridMin, inverseCellWidth,
-                          gridCellStartIndices, gridCellEndIndices, pos, vel1);
+                          cellWidth, gridCellStartIndices, gridCellEndIndices,
+                          pos, vel1);
     float speed2 = glm::length2(bvel);
     vel2[index] = speed2 <= maxSpeed * maxSpeed
                       ? bvel
