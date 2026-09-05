@@ -292,16 +292,16 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf,
         }
     }
 
-    perceived_center = num_rule1_nbrs > 0
-                           ? perceived_center / (float)num_rule1_nbrs
-                           : glm::vec3(0);
-    glm::vec3 rule1_vel = (perceived_center - bpos) * rule1Scale;
+    perceived_center = perceived_center / (float)num_rule1_nbrs;
+    glm::vec3 rule1_vel = num_rule1_nbrs > 0
+                              ? (perceived_center - bpos) * rule1Scale
+                              : glm::vec3(0);
 
     glm::vec3 rule2_vel = c * rule2Scale;
 
-    perceived_vel = num_rule3_nbrs > 0 ? perceived_vel / (float)num_rule3_nbrs
-                                       : glm::vec3(0);
-    glm::vec3 rule3_vel = perceived_vel * rule3Scale;
+    perceived_vel = perceived_vel / (float)num_rule3_nbrs;
+    glm::vec3 rule3_vel =
+        num_rule3_nbrs > 0 ? perceived_vel * rule3Scale : glm::vec3(0);
 
     bvel += rule1_vel;
     bvel += rule2_vel;
@@ -324,8 +324,10 @@ __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
         return;
     }
     glm::vec3 bvel = vel1[index] + computeVelocityChange(N, index, pos, vel1);
-    glm::vec3 max_vel = glm::vec3(maxSpeed);
-    vel2[index] = glm::clamp(bvel, -max_vel, max_vel);
+    float speed2 = glm::length2(bvel);
+    vel2[index] = speed2 <= maxSpeed * maxSpeed
+                      ? bvel
+                      : bvel / glm::sqrt(speed2) * maxSpeed;
 }
 
 /**
