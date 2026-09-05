@@ -490,6 +490,11 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearch(
                 glm::ivec3 ngrid_idx = bgrid_idx + glm::ivec3(x, y, z);
                 int ngrid_id = gridIndex3Dto1D(ngrid_idx.x, ngrid_idx.y,
                                                ngrid_idx.z, gridResolution);
+                if (glm::any(glm::lessThan(ngrid_idx, glm::ivec3(0))) ||
+                    glm::any(glm::greaterThanEqual(
+                        ngrid_idx, glm::ivec3(gridResolution)))) {
+                    continue;
+                }
                 int start_idx = gridCellStartIndices[ngrid_id];
                 if (start_idx == N + 1) {
                     // sentinel indicating no boids in this nbr cell
@@ -593,7 +598,13 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     for (int z = -1; z <= 1; ++z) {
         for (int y = -1; y <= 1; ++y) {
             for (int x = -1; x <= 1; ++x) {
+                glm::ivec3 offset = glm::ivec3(x, y, z);
                 glm::ivec3 ngrid_idx = bgrid_idx + glm::ivec3(x, y, z);
+                if (glm::any(glm::lessThan(ngrid_idx, glm::ivec3(0))) ||
+                    glm::any(glm::greaterThanEqual(
+                        ngrid_idx, glm::ivec3(gridResolution)))) {
+                    continue;
+                }
                 int ngrid_id = gridIndex3Dto1D(ngrid_idx.x, ngrid_idx.y,
                                                ngrid_idx.z, gridResolution);
                 int start_idx = gridCellStartIndices[ngrid_id];
