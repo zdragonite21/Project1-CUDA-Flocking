@@ -198,25 +198,13 @@ void Boids::initSimulation(int N) {
     cudaMalloc((void **)&dev_particleGridIndices, N * sizeof(int));
     checkCUDAErrorWithLine("cudaMalloc dev_particleGridIndices failed!");
 
-    cudaMalloc((void **)&dev_gridCellStartIndices, N * sizeof(int));
+    cudaMalloc((void **)&dev_gridCellStartIndices, gridCellCount * sizeof(int));
     checkCUDAErrorWithLine("cudaMalloc dev_gridCellStartIndices failed!");
 
-    cudaMalloc((void **)&dev_gridCellEndIndices, N * sizeof(int));
+    cudaMalloc((void **)&dev_gridCellEndIndices, gridCellCount * sizeof(int));
     checkCUDAErrorWithLine("cudaMalloc dev_gridCellEndIndices failed!");
 
-    // init with 0 values
-    cudaMemset(dev_particleArrayIndices, 0, N * sizeof(int));
-    checkCUDAErrorWithLine("cudaMemset dev_particleArrayIndices failed!");
-
-    cudaMemset(dev_particleGridIndices, 0, N * sizeof(int));
-    checkCUDAErrorWithLine("cudaMemset dev_particleGridIndices failed!");
-
-    // N + 1 is our sentinel value: no boids in this grid cell
-    cudaMemset(dev_gridCellStartIndices, N + 1, N * sizeof(int));
-    checkCUDAErrorWithLine("cudaMemset dev_gridCellStartIndices failed!");
-
-    cudaMemset(dev_gridCellEndIndices, 0, N * sizeof(int));
-    checkCUDAErrorWithLine("cudaMemset dev_gridCellEndIndices failed!");
+    // no need to memset these values as they are all set
 
     // thrust pointers
     dev_thrust_particleArrayIndices =
@@ -443,14 +431,16 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
 
     if (index == 0) {
         gridCellStartIndices[curr] = 0;
-    } else if (index == N - 1) {
-        gridCellEndIndices[curr] = N;
     } else {
         int prev = particleGridIndices[index - 1];
         if (curr != prev) {
             gridCellStartIndices[curr] = index;
             gridCellEndIndices[prev] = index;
         }
+    }
+
+    if (index == N - 1) {
+        gridCellEndIndices[curr] = N;
     }
 }
 
@@ -605,8 +595,10 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     thrust::sort_by_key(dev_thrust_particleGridIndices,
                         dev_thrust_particleGridIndices + numObjects,
                         dev_thrust_particleArrayIndices);
-    kernResetIntBuffer<<<fullBlocksPerGrid, blockSize>>>(
-        numObjects, dev_gridCellStartIndices, numObjects + 1);
+    dim3 fullBlocksPerGridStartIndices((gridCellCount + blockSize - 1) /
+                                       blockSize);
+    kernResetIntBuffer<<<fullBlocksPerGridStartIndices, blockSize>>>(
+        gridCellCount, dev_gridCellStartIndices, numObjects + 1);
     kernIdentifyCellStartEnd<<<fullBlocksPerGrid, blockSize>>>(
         numObjects, dev_particleGridIndices, dev_gridCellStartIndices,
         dev_gridCellEndIndices);
@@ -646,6 +638,10 @@ void Boids::endSimulation() {
     cudaFree(dev_pos);
 
     // TODO-2.1 TODO-2.3 - Free any additional buffers here.
+    cudaFree(dev_particleArrayIndices);
+    cudaFree(dev_particleGridIndices);
+    cudaFree(dev_gridCellStartIndices);
+    cudaFree(dev_gridCellEndIndices);
 }
 
 void Boids::unitTest() {
