@@ -63,10 +63,13 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define avoidanceScale 0.3f
 #define avoidanceThres 10.0f
 
+#define sdfForceScale 1.f
+#define sdfThres 3.0f
+
 #define maxSpeed 1.0f
 
 /*! Size of the starting area in simulation space. */
-#define scene_scale 100.0f
+#define scene_scale 200.0f
 
 /***********************************************
  * Kernel state (pointers are device pointers) *
@@ -701,8 +704,28 @@ __device__ glm::vec3 computeAvoidanceForce(glm::vec3 bpos) {
     }
 
     float strength = glm::smoothstep(-avoidanceThres, 0.f, sd);
-
     return strength * -nor * avoidanceScale;
+}
+
+__device__ glm::vec3 computeSdfForces(glm::vec3 bpos) {
+    const float influence_radius = 30;
+    const float freq = 10.0;
+
+    glm::vec4 sdg = sdgTorus(bpos, scene_scale * 0.5, 5);
+    float sd = sdg.x;
+    glm::vec3 nor = glm::vec3(sdg.y, sdg.z, sdg.w);
+
+    float x = abs(sd) / influence_radius;
+    float w = x * expf(-4.0f * x * x);
+
+    glm::ivec3 id = (glm::ivec3)bpos;
+    float phase = hash(id.x | id.y | id.z) * TWO_PI;
+    float pulse = sin(freq + phase);
+
+    float strength = w * glm::mix(0.75f, 1.25f, pulse);
+    glm::vec3 dir = -glm::sign(sd) * nor;
+
+    return strength * dir * sdfForceScale;
 }
 
 __global__ void kernUpdateVelNeighborSearchCoherent(
@@ -732,7 +755,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
         computeVelocityChangeNeighborSearchCoherent(
             N, index, gridResolution, gridMin, inverseCellWidth, cellWidth,
             gridCellStartIndices, gridCellEndIndices, bpos, pos, vel1) +
-        computeAvoidanceForce(bpos);
+        computeAvoidanceForce(bpos) + computeSdfForces(bpos);
     float speed2 = glm::length2(bvel);
     vel2[index] = speed2 <= maxSpeed * maxSpeed
                       ? bvel
