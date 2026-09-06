@@ -351,7 +351,7 @@ __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
     float speed2 = glm::length2(bvel);
     vel2[index] = speed2 <= maxSpeed * maxSpeed
                       ? bvel
-                      : bvel / glm::sqrt(speed2) * maxSpeed;
+                      : bvel * glm::inversesqrt(speed2) * maxSpeed;
 }
 
 /**
@@ -483,7 +483,7 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearch(
     glm::vec3 boff = bpos - gridMin;
     glm::ivec3 bgrid_idx = (glm::ivec3)(boff * inverseCellWidth);
 
-    glm::vec3 cell_off = bpos - (glm::vec3)bgrid_idx;
+    glm::vec3 cell_off = bpos - (glm::vec3)bgrid_idx + gridMin;
     glm::vec3 center_dir = 2.f * cell_off - glm::vec3(cellWidth);
     glm::ivec3 cell_corner = glm::sign(center_dir);
     glm::ivec3 cell_st = glm::min(cell_corner, glm::ivec3(0));
@@ -492,14 +492,16 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearch(
     for (int z = cell_st.z; z <= cell_ed.z; ++z) {
         for (int y = cell_st.y; y <= cell_ed.y; ++y) {
             for (int x = cell_st.x; x <= cell_ed.x; ++x) {
+                glm::ivec3 offset = glm::ivec3(x, y, z);
                 glm::ivec3 ngrid_idx = bgrid_idx + glm::ivec3(x, y, z);
-                int ngrid_id = gridIndex3Dto1D(ngrid_idx.x, ngrid_idx.y,
-                                               ngrid_idx.z, gridResolution);
                 if (glm::any(glm::lessThan(ngrid_idx, glm::ivec3(0))) ||
                     glm::any(glm::greaterThanEqual(
                         ngrid_idx, glm::ivec3(gridResolution)))) {
                     continue;
                 }
+
+                int ngrid_id = gridIndex3Dto1D(ngrid_idx.x, ngrid_idx.y,
+                                               ngrid_idx.z, gridResolution);
                 int start_idx = gridCellStartIndices[ngrid_id];
                 if (start_idx == N + 1) {
                     // sentinel indicating no boids in this nbr cell
@@ -575,7 +577,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     float speed2 = glm::length2(bvel);
     vel2[index] = speed2 <= maxSpeed * maxSpeed
                       ? bvel
-                      : bvel / glm::sqrt(speed2) * maxSpeed;
+                      : bvel * glm::inversesqrt(speed2) * maxSpeed;
 }
 
 __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
@@ -599,7 +601,7 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     glm::vec3 boff = bpos - gridMin;
     glm::ivec3 bgrid_idx = (glm::ivec3)(boff * inverseCellWidth);
 
-    glm::vec3 cell_off = bpos - (glm::vec3)bgrid_idx;
+    glm::vec3 cell_off = bpos - (glm::vec3)bgrid_idx + gridMin;
     glm::vec3 center_dir = 2.f * cell_off - glm::vec3(cellWidth);
     glm::ivec3 cell_corner = glm::sign(center_dir);
     glm::ivec3 cell_st = glm::min(cell_corner, glm::ivec3(0));
@@ -695,7 +697,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
     float speed2 = glm::length2(bvel);
     vel2[index] = speed2 <= maxSpeed * maxSpeed
                       ? bvel
-                      : bvel / glm::sqrt(speed2) * maxSpeed;
+                      : bvel * glm::inversesqrt(speed2) * maxSpeed;
 }
 
 /**
