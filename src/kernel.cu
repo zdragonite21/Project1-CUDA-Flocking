@@ -47,6 +47,10 @@ void checkCUDAError(const char *msg, int line = -1) {
  * Configuration *
  *****************/
 
+#define AVOIDANCE 1
+#define TORUS 0
+#define MANDEBULB 1
+
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 128
 
@@ -66,7 +70,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define maxSpeed 1.0f
 
 /*! Size of the starting area in simulation space. */
-#define scene_scale 200.0f
+#define scene_scale 1000.0f
 
 /***********************************************
  * Kernel state (pointers are device pointers) *
@@ -670,7 +674,49 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     return bvel;
 }
 
-// IQ's formula for sdg box and torus
+// IQ's formula for sdg box and torus and mandebulb and normals
+__device__ float mandebulb(glm::vec3 p) {
+    glm::vec3 w = p;
+    float m = glm::dot(w, w);
+
+    glm::vec4 trap = glm::vec4(abs(w), m);
+    float dz = 1.0;
+
+    for (int i = 0; i < 4; i++) {
+        // trigonometric version (MUCH faster than polynomial)
+
+        // dz = 8*z^7*dz
+        dz = 8.0 * glm::pow(m, 3.5) * dz + 1.0;
+
+        // z = z^8+c
+        float r = glm::length(w);
+        float b = 8.0 * glm::acos(w.y / r);
+        float a = 8.0 * glm::atan(w.x, w.z);
+        w = p + (float)glm::pow(r, 8.0) * glm::vec3(glm::sin(b) * glm::sin(a),
+                                                    glm::cos(b),
+                                                    glm::sin(b) * glm::cos(a));
+
+        trap = glm::min(trap, glm::vec4(glm::abs(w), m));
+
+        m = glm::dot(w, w);
+        if (m > 256.0)
+            break;
+    }
+
+    // distance estimation (through the Hubbard-Douady potential)
+    return 0.25 * log(m) * sqrt(m) / dz;
+}
+
+__device__ glm::vec3 calcNormal(glm::vec3 pos, float px) {
+    glm::vec2 e = glm::vec2(1.0, -1.0) * 0.5773f * 0.25f * px;
+
+    return glm::normalize(
+        glm::vec3(e.x, e.y, e.y) * mandebulb(pos + glm::vec3(e.x, e.y, e.y)) +
+        glm::vec3(e.y, e.y, e.x) * mandebulb(pos + glm::vec3(e.y, e.y, e.x)) +
+        glm::vec3(e.y, e.x, e.y) * mandebulb(pos + glm::vec3(e.y, e.x, e.y)) +
+        glm::vec3(e.x) * mandebulb(pos + glm::vec3(e.x)));
+}
+
 __device__ glm::vec4 sdgBox(glm::vec3 p, glm::vec3 b, float r) {
     glm::vec3 w = glm::abs(p) - (b - r);
     float g = fmaxf(w.x, fmaxf(w.y, w.z));
@@ -726,6 +772,29 @@ __device__ glm::vec3 computeSdfForces(glm::vec3 bpos) {
     return strength * dir * sdfForceScale;
 }
 
+__device__ glm::vec3 computeMandebulbForces(glm::vec3 bpos) {
+    const float sdfForceScale = 100.0;
+    const float influence_radius = 30;
+    const float freq = 10.0;
+    const float inv_scene_scale = 1.0 / scene_scale;
+
+    glm::vec3 p = bpos * inv_scene_scale * 2.0f;
+    float sd = mandebulb(p);
+    glm::vec3 nor = calcNormal(p, inv_scene_scale);
+
+    float x = abs(sd) / influence_radius;
+    float w = x * expf(-4.0f * x * x);
+
+    glm::ivec3 id = (glm::ivec3)bpos;
+    float phase = hash(id.x | id.y | id.z) * TWO_PI;
+    float pulse = sin(freq + phase);
+
+    float strength = w * glm::mix(0.75f, 1.25f, pulse);
+    glm::vec3 dir = -glm::sign(sd) * nor;
+
+    return strength * dir * sdfForceScale;
+}
+
 __global__ void kernUpdateVelNeighborSearchCoherent(
     int N, int gridResolution, glm::vec3 gridMin, float inverseCellWidth,
     float cellWidth, int *gridCellStartIndices, int *gridCellEndIndices,
@@ -749,11 +818,20 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
     }
     glm::vec3 bpos = pos[index];
     glm::vec3 bvel =
-        vel1[index] +
-        computeVelocityChangeNeighborSearchCoherent(
-            N, index, gridResolution, gridMin, inverseCellWidth, cellWidth,
-            gridCellStartIndices, gridCellEndIndices, bpos, pos, vel1) +
-        computeAvoidanceForce(bpos) + computeSdfForces(bpos);
+        vel1[index] + computeVelocityChangeNeighborSearchCoherent(
+                          N, index, gridResolution, gridMin, inverseCellWidth,
+                          cellWidth, gridCellStartIndices, gridCellEndIndices,
+                          bpos, pos, vel1);
+#if AVOIDANCE
+    bvel += computeAvoidanceForce(bpos);
+#endif
+#if TORUS
+    bvel += computeSdfForces(bpos);
+#endif
+#if MANDEBULB
+    bvel += computeMandebulbForces(bpos);
+#endif
+
     float speed2 = glm::length2(bvel);
     vel2[index] = speed2 <= maxSpeed * maxSpeed
                       ? bvel
