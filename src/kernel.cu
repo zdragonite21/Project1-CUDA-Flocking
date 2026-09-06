@@ -63,9 +63,6 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define avoidanceScale 0.3f
 #define avoidanceThres 10.0f
 
-#define sdfForceScale 1.f
-#define sdfThres 3.0f
-
 #define maxSpeed 1.0f
 
 /*! Size of the starting area in simulation space. */
@@ -708,6 +705,7 @@ __device__ glm::vec3 computeAvoidanceForce(glm::vec3 bpos) {
 }
 
 __device__ glm::vec3 computeSdfForces(glm::vec3 bpos) {
+    const float sdfForceScale = 1.0;
     const float influence_radius = 30;
     const float freq = 10.0;
 
