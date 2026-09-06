@@ -60,7 +60,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define rule2Scale 0.1f
 #define rule3Scale 0.1f
 
-#define avoidanceScale 0.0f
+#define avoidanceScale 0.3f
 #define avoidanceThres 10.0f
 
 #define maxSpeed 1.0f
@@ -114,10 +114,6 @@ glm::vec3 gridMinimum{};
  * initSimulation *
  ******************/
 
-#define num_view_dirs 300
-
-__constant__ float3 c_view_dirs[num_view_dirs];
-
 __host__ __device__ unsigned int hash(unsigned int a) {
     a = (a + 0x7ed55d16) + (a << 12);
     a = (a ^ 0xc761c23c) ^ (a >> 19);
@@ -154,26 +150,6 @@ __global__ void kernGenerateRandomPosArray(int time, int N, glm::vec3 *arr,
         arr[index].y = scale * rand.y;
         arr[index].z = scale * rand.z;
     }
-}
-
-// golden spiral from Sebastian Lague's video on boids
-void create_view_dirs() {
-    glm::vec3 dev_dirs[num_view_dirs]{};
-    float golden_ratio = (1 + glm::sqrt(5)) / 2;
-    float angle_inc = glm::pi<float>() * 2 * golden_ratio;
-
-    for (int i = 0; i < num_view_dirs; ++i) {
-        float t = (float)i / num_view_dirs;
-        float inclination = glm::acos(1 - 2 * t);
-        float azimuth = angle_inc * i;
-
-        float x = glm::sin(inclination) * glm::cos(azimuth);
-        float y = glm::sin(inclination) * glm::sin(azimuth);
-        float z = glm::cos(inclination);
-        dev_dirs[i] = glm::vec3(x, y, z);
-    }
-
-    cudaMemcpyToSymbol(c_view_dirs, dev_dirs, sizeof(dev_dirs));
 }
 
 /**
@@ -242,9 +218,6 @@ void Boids::initSimulation(int N) {
         thrust::device_ptr<int>(dev_particleArrayIndices);
     dev_thrust_particleGridIndices =
         thrust::device_ptr<int>(dev_particleGridIndices);
-
-    // view dirs for ray casting
-    create_view_dirs();
 
     cudaDeviceSynchronize();
 }
@@ -717,20 +690,6 @@ __device__ glm::vec4 sdgTorus(glm::vec3 p, float ra, float rb) {
     return glm::vec4(glm::length(glm::vec2(h - ra, p.y)) - rb,
                      glm::normalize(p * glm::vec3(h - ra, h, h - ra)));
 }
-
-// __device__ glm::vec3 computeAvoidanceForce(glm::vec3 bpos, glm::vec3 bvel) {
-//     glm::vec3 fwd = glm::normalize(bvel);
-//     glm::vec3 best_dir = fwd;
-//     float furthest_unobstruct_dist = 0;
-//     glm::quat rot = glm::rotation(glm::vec3(0, 0, 1), fwd);
-
-//     for (int i = 0; i < num_view_dirs; ++i) {
-//         float3 d = c_view_dirs[i];
-//         glm::vec3 dir = rot * glm::vec3(d.x, d.y, d.z) + bpos;
-//     }
-
-//     return glm::vec3(0);
-// }
 
 __device__ glm::vec3 computeAvoidanceForce(glm::vec3 bpos) {
     glm::vec4 sdg_box = sdgBox(bpos, glm::vec3(scene_scale), 0.1);
