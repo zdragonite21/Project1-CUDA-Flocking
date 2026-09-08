@@ -26,6 +26,8 @@
 #define UNIFORM_GRID 1
 #define COHERENT_GRID 1
 
+#define PROFILE_MODE 0
+
 // LOOK-1.2 - change this to adjust particle count in the simulation
 const int N_FOR_VIS = 100000;
 const float DT = 0.2f;
@@ -126,8 +128,10 @@ bool init(int argc, char **argv) {
 
     glEnable(GL_DEPTH_TEST);
 
+#if PROFILE_MODE
     cudaEventCreate(&kern_start);
     cudaEventCreate(&kern_stop);
+#endif
 
     return true;
 }
@@ -213,7 +217,12 @@ float runCUDA() {
     cudaGLMapBufferObject((void **)&dptrVertPositions, boidVBO_positions);
     cudaGLMapBufferObject((void **)&dptrVertVelocities, boidVBO_velocities);
 
+    float kern_ms{};
+
+#if PROFILE_MODE
     cudaEventRecord(kern_start);
+#endif
+
 // execute the kernel
 #if UNIFORM_GRID && COHERENT_GRID
     Boids::stepSimulationCoherentGrid(DT);
@@ -222,11 +231,13 @@ float runCUDA() {
 #else
     Boids::stepSimulationNaive(DT);
 #endif
+
+#if PROFILE_MODE
     cudaEventRecord(kern_stop);
     cudaEventSynchronize(kern_stop);
 
-    float kern_ms;
     cudaEventElapsedTime(&kern_ms, kern_start, kern_stop);
+#endif
 
 #if VISUALIZE
     Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
@@ -267,6 +278,7 @@ void mainLoop() {
 
         kern_ms = runCUDA();
 
+#if PROFILE_MODE
         if (time - init_time > skip_until_s) {
             frame_num++;
             kern_total_ms += kern_ms;
@@ -275,6 +287,7 @@ void mainLoop() {
         if (time - init_time > profile_s + skip_until_s) {
             break;
         }
+#endif
 
         std::ostringstream ss;
         ss << "[";
@@ -298,13 +311,14 @@ void mainLoop() {
         glfwSwapBuffers(window);
 #endif
     }
+
+#if PROFILE_MODE
     cudaEventDestroy(kern_start);
     cudaEventDestroy(kern_stop);
+#endif
 
     printf("Kernel avg fps:\n");
-    printf("%.3f\n",
-           (float)(frame_num) / (kern_total_ms / 1000.0));
-           
+    printf("%.3f\n", (float)(frame_num) / (kern_total_ms / 1000.0));
 
     glfwDestroyWindow(window);
     glfwTerminate();
