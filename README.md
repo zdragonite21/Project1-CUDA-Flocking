@@ -152,3 +152,18 @@ I moved `include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")` so th
 I also added a compile option for release mode to include the `-lineinfo` tag for NSight Compute performance analysis.
 
 Added: `$<COMPILE_LANGUAGE:CUDA>>:-G>" "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo>"`
+
+### bloopers
+
+<p align="center">
+  <img src="images/blooper_corner.gif" alt="blooper 1"><br>
+</p>
+
+<p align="center">
+  <img src="images/blooper_edges.gif" alt="blooper 2"><br>
+</p>
+
+<p align="center">
+  <img src="images/boids_ball.gif" alt="donut ball"><br>
+  <em>donut ball</em>
+</p>
