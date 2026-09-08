@@ -54,7 +54,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 128
 
-#define radiusMul 2.0f
+#define radiusMul 4.0f
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -593,7 +593,7 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     // other Rule 3: boids try to match the speed of surrounding boids
     const int nbr_radius =
         glm::max(glm::max(rule1Distance, rule2Distance), rule3Distance);
-        
+
     glm::vec3 bvel{};
 
     glm::vec3 perceived_center{};
