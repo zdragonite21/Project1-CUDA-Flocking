@@ -1,14 +1,18 @@
 **University of Pennsylvania, CIS 5650: GPU Programming and Architecture,
 Project 1 - Flocking**
 
+# The Everything Bagel
+
+<p align="center">
+  <img src="images/boids_torus_100k_v3.gif" alt="animation of 100k boids forming a torus" width="800"><br>
+  <em>100,000 boids forming a torus, recorded from a fixed camera</em>
+</p>
+
+###  specs
+
 - Zachary Leong
   - [LinkedIn](https://linkedin.com/in/zleong), [personal website](https://zacharyleong.com)
 - Tested on: Windows 11, Ultra 9 185H @ 2.30GHz 32GB, RTX 4060 Laptop (personal)
-
-<p align="center">
-  <video controls src="boids_torus_100k_v3.mp4" title="Title"></video>
-  <i>donut</i>
-</p>
 
 ### setup
 
@@ -33,7 +37,7 @@ boids are particles that independently follow 3 rules:
 
 And from there, emerges complex and beautiful behavior, resembling flocks of birds, or schools of fish.
 
-<video controls src="regular_boids.mp4" title="Title"></video>
+![Animation of the standard flocking behavior](images/regular_boids.gif)
 
 ### optimizations
 #### uniform grid
@@ -51,7 +55,7 @@ Inspired by Sebastian Lague's [video](https://www.youtube.com/watch?v=bqtqltqcQh
 
 Instead, I went with the simpler method: use SDFs and their gradients to influence the boids' velocities. Using the box SDF formula from Inigo Quilez's [blog](https://iquilezles.org/articles/distgradfunctions3d/), I nudged the velocities of boids near the bounds to stay inside.
 
-<video controls src="boids_avoidance.mp4" title="Title"></video>
+![Animation of boids avoiding the sim bounds](images/boids_avoidance.gif)
 
 This is how it works:
 
@@ -90,23 +94,23 @@ The gradient tells us the direction in which the SDF function increases the fast
 Now we can also use the SDF as an attractive force, creating effects like this.
 
 <p align="center">
-  <video controls src="boids_mystic_torus.mp4" title="Title"></video>
-  <i>torus sdf</i>
+  <img src="images/boids_mystic_torus.gif" alt="Boids following a torus sdf"><br>
+  <em>Torus SDF</em>
 </p>
 
 <p align="center">
-  <video controls src="boids_covering.mp4" title="Title"></video>
-  <i>torus sdf</i>
+  <img src="images/boids_covering.gif" alt="Boids covering the surface of a torus"><br>
+  <em>Boids covering a torus</em>
 </p>
 
 <p align="center">
-  <video controls src="mandelbulb.mp4" title="Title"></video>
-  <i>mandelbulb sdf</i>
+  <img src="images/mandelbulb.gif" alt="Boids following a mandelbulb sdf"><br>
+  <em>Mandelbulb SDF</em>
 </p>
 
 <p align="center">
-  <video controls src="mandelbulb_attraction.mp4" title="Title"></video>
-  <i>mandelbulb attraction</i>
+  <img src="images/mandelbulb_attraction.gif" alt="Boids attracted to a mandelbulb"><br>
+  <em>Mandelbulb attraction</em>
 </p>
 
 
