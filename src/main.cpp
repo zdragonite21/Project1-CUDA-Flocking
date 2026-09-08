@@ -27,7 +27,7 @@
 #define COHERENT_GRID 1
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 1000000;
+const int N_FOR_VIS = 100000;
 const float DT = 0.2f;
 
 /**
@@ -51,6 +51,8 @@ int main(int argc, char *argv[]) {
 
 std::string deviceName;
 GLFWwindow *window;
+
+cudaEvent_t kern_start, kern_stop;
 
 /**
  * Initialization of CUDA and GLFW.
@@ -124,6 +126,9 @@ bool init(int argc, char **argv) {
 
     glEnable(GL_DEPTH_TEST);
 
+    cudaEventCreate(&kern_start);
+    cudaEventCreate(&kern_stop);
+
     return true;
 }
 
@@ -196,7 +201,7 @@ void initShaders(GLuint *program) {
 //====================================
 // Main loop
 //====================================
-void runCUDA() {
+float runCUDA() {
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not
     // use this buffer
@@ -208,6 +213,7 @@ void runCUDA() {
     cudaGLMapBufferObject((void **)&dptrVertPositions, boidVBO_positions);
     cudaGLMapBufferObject((void **)&dptrVertVelocities, boidVBO_velocities);
 
+    cudaEventRecord(kern_start);
 // execute the kernel
 #if UNIFORM_GRID && COHERENT_GRID
     Boids::stepSimulationCoherentGrid(DT);
@@ -216,6 +222,11 @@ void runCUDA() {
 #else
     Boids::stepSimulationNaive(DT);
 #endif
+    cudaEventRecord(kern_stop);
+    cudaEventSynchronize(kern_stop);
+
+    float kern_ms;
+    cudaEventElapsedTime(&kern_ms, kern_start, kern_stop);
 
 #if VISUALIZE
     Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
@@ -223,12 +234,21 @@ void runCUDA() {
     // unmap buffer object
     cudaGLUnmapBufferObject(boidVBO_positions);
     cudaGLUnmapBufferObject(boidVBO_velocities);
+
+    return kern_ms;
 }
 
 void mainLoop() {
     double fps = 0;
     double timebase = 0;
     int frame = 0;
+
+    float kern_ms = 0.0;
+    double kern_total_ms = 0.0;
+    const int skip_until_s = 3.0;
+    const int profile_s = 5.0;
+    int frame_num = 0;
+    double init_time = glfwGetTime();
 
     Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
                        // your CUDA development setup is ready to go.
@@ -245,7 +265,16 @@ void mainLoop() {
             frame = 0;
         }
 
-        runCUDA();
+        kern_ms = runCUDA();
+
+        if (time - init_time > skip_until_s) {
+            frame_num++;
+            kern_total_ms += kern_ms;
+        }
+
+        if (time - init_time > profile_s + skip_until_s) {
+            break;
+        }
 
         std::ostringstream ss;
         ss << "[";
@@ -269,6 +298,14 @@ void mainLoop() {
         glfwSwapBuffers(window);
 #endif
     }
+    cudaEventDestroy(kern_start);
+    cudaEventDestroy(kern_stop);
+
+    printf("Kernel avg fps:\n");
+    printf("%.3f\n",
+           (float)(frame_num) / (kern_total_ms / 1000.0));
+           
+
     glfwDestroyWindow(window);
     glfwTerminate();
 }

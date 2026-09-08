@@ -47,9 +47,9 @@ void checkCUDAError(const char *msg, int line = -1) {
  * Configuration *
  *****************/
 
-#define AVOIDANCE 1
+#define AVOIDANCE 0
 #define TORUS 0
-#define MANDEBULB 1
+#define MANDEBULB 0
 
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 128
@@ -70,7 +70,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define maxSpeed 1.0f
 
 /*! Size of the starting area in simulation space. */
-#define scene_scale 1000.0f
+#define scene_scale 100.0f
 
 /***********************************************
  * Kernel state (pointers are device pointers) *
@@ -476,6 +476,8 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearch(
     // Rule 1: boids fly towards their local perceived center of mass, which
     // excludes themselves Rule 2: boids try to stay a distance d away from each
     // other Rule 3: boids try to match the speed of surrounding boids
+    const int nbr_radius =
+        glm::max(glm::max(rule1Distance, rule2Distance), rule3Distance);
 
     glm::vec3 bvel{};
 
@@ -487,26 +489,18 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearch(
     int num_rule3_nbrs{};
 
     glm::vec3 bpos = pos[iSelf];
-    glm::vec3 boff = bpos - gridMin;
-    glm::ivec3 bgrid_idx = (glm::ivec3)(boff * inverseCellWidth);
 
-    glm::vec3 cell_off = bpos - ((glm::vec3)bgrid_idx * cellWidth + gridMin);
-    glm::vec3 center_dir = 2.f * cell_off - glm::vec3(cellWidth);
-    glm::ivec3 cell_corner = glm::sign(center_dir);
-    glm::ivec3 cell_st = glm::min(cell_corner, glm::ivec3(0));
-    glm::ivec3 cell_ed = glm::max(cell_corner, glm::ivec3(0));
+    glm::ivec3 cell_st =
+        (glm::ivec3)glm::max((bpos - glm::vec3(nbr_radius)) * inverseCellWidth,
+                             glm::vec3(-scene_scale));
+    glm::ivec3 cell_ed =
+        (glm::ivec3)glm::min((bpos + glm::vec3(nbr_radius)) * inverseCellWidth,
+                             glm::vec3(scene_scale));
 
     for (int z = cell_st.z; z <= cell_ed.z; ++z) {
         for (int y = cell_st.y; y <= cell_ed.y; ++y) {
             for (int x = cell_st.x; x <= cell_ed.x; ++x) {
-                glm::ivec3 offset = glm::ivec3(x, y, z);
-                glm::ivec3 ngrid_idx = bgrid_idx + glm::ivec3(x, y, z);
-                if (glm::any(glm::lessThan(ngrid_idx, glm::ivec3(0))) ||
-                    glm::any(glm::greaterThanEqual(
-                        ngrid_idx, glm::ivec3(gridResolution)))) {
-                    continue;
-                }
-
+                glm::ivec3 ngrid_idx = glm::ivec3(x, y, z);
                 int ngrid_id = gridIndex3Dto1D(ngrid_idx.x, ngrid_idx.y,
                                                ngrid_idx.z, gridResolution);
                 int start_idx = gridCellStartIndices[ngrid_id];
