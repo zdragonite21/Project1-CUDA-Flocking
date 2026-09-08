@@ -6,15 +6,9 @@ Project 1 - Flocking**
 - Tested on: Windows 11, Ultra 9 185H @ 2.30GHz 32GB, RTX 4060 Laptop (personal)
 
 <p align="center">
-  <video controls src="boids_mystic_torus.mp4" title="Title"></video>
-  <i>1 million boids</i>
+  <video controls src="boids_torus_100k_v3.mp4" title="Title"></video>
+  <i>donut</i>
 </p>
-
-### pull request
-
-- implemented boids algorithm (3 rules) using CUDA
-- 3 implementations: naive, uniform grid, **coherent** grid
-- extra credit: grid-looping optimization
 
 ### setup
 
@@ -96,13 +90,13 @@ The gradient tells us the direction in which the SDF function increases the fast
 Now we can also use the SDF as an attractive force, creating effects like this.
 
 <p align="center">
-  <video controls src="boids_torus_100k_v3.mp4" title="Title"></video>
-  <i>torus sdf (100k boids)</i>
+  <video controls src="boids_mystic_torus.mp4" title="Title"></video>
+  <i>torus sdf</i>
 </p>
 
 <p align="center">
   <video controls src="boids_covering.mp4" title="Title"></video>
-  <i>torus sdf (1 million boids)</i>
+  <i>torus sdf</i>
 </p>
 
 <p align="center">
