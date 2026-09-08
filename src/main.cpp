@@ -315,10 +315,10 @@ void mainLoop() {
 #if PROFILE_MODE
     cudaEventDestroy(kern_start);
     cudaEventDestroy(kern_stop);
-#endif
 
     printf("Kernel avg fps:\n");
     printf("%.3f\n", (float)(frame_num) / (kern_total_ms / 1000.0));
+#endif
 
     glfwDestroyWindow(window);
     glfwTerminate();

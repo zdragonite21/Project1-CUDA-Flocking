@@ -54,6 +54,8 @@ void checkCUDAError(const char *msg, int line = -1) {
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 128
 
+#define radiusMul 2.0f
+
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
 #define rule1Distance 5.0f
@@ -187,8 +189,8 @@ void Boids::initSimulation(int N) {
     checkCUDAErrorWithLine("kernGenerateRandomPosArray failed!");
 
     // LOOK-2.1 computing grid params
-    gridCellWidth =
-        2.0f * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+    gridCellWidth = radiusMul * std::max(std::max(rule1Distance, rule2Distance),
+                                         rule3Distance);
     int halfSideCount = (int)(scene_scale / gridCellWidth) + 1;
     gridSideCount = 2 * halfSideCount;
 
@@ -491,11 +493,11 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearch(
     glm::vec3 bpos = pos[iSelf];
 
     glm::ivec3 cell_st =
-        (glm::ivec3)glm::max((bpos - glm::vec3(nbr_radius)) * inverseCellWidth,
-                             glm::vec3(-scene_scale));
+        (glm::ivec3)((bpos - glm::vec3(nbr_radius) - gridMin) * inverseCellWidth);
+    cell_st = glm::max(cell_st, 0);
     glm::ivec3 cell_ed =
-        (glm::ivec3)glm::min((bpos + glm::vec3(nbr_radius)) * inverseCellWidth,
-                             glm::vec3(scene_scale));
+        (glm::ivec3)((bpos + glm::vec3(nbr_radius) - gridMin) * inverseCellWidth);
+    cell_ed = glm::min(cell_ed, gridResolution - 1);
 
     for (int z = cell_st.z; z <= cell_ed.z; ++z) {
         for (int y = cell_st.y; y <= cell_ed.y; ++y) {
@@ -589,7 +591,9 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     // Rule 1: boids fly towards their local perceived center of mass, which
     // excludes themselves Rule 2: boids try to stay a distance d away from each
     // other Rule 3: boids try to match the speed of surrounding boids
-
+    const int nbr_radius =
+        glm::max(glm::max(rule1Distance, rule2Distance), rule3Distance);
+        
     glm::vec3 bvel{};
 
     glm::vec3 perceived_center{};
@@ -599,25 +603,17 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     int num_rule1_nbrs{};
     int num_rule3_nbrs{};
 
-    glm::vec3 boff = bpos - gridMin;
-    glm::ivec3 bgrid_idx = (glm::ivec3)(boff * inverseCellWidth);
-
-    glm::vec3 cell_off = bpos - ((glm::vec3)bgrid_idx * cellWidth + gridMin);
-    glm::vec3 center_dir = 2.f * cell_off - glm::vec3(cellWidth);
-    glm::ivec3 cell_corner = glm::sign(center_dir);
-    glm::ivec3 cell_st = glm::min(cell_corner, glm::ivec3(0));
-    glm::ivec3 cell_ed = glm::max(cell_corner, glm::ivec3(0));
+    glm::ivec3 cell_st =
+        (glm::ivec3)((bpos - glm::vec3(nbr_radius) - gridMin) * inverseCellWidth);
+    cell_st = glm::max(cell_st, 0);
+    glm::ivec3 cell_ed =
+        (glm::ivec3)((bpos + glm::vec3(nbr_radius) - gridMin) * inverseCellWidth);
+    cell_ed = glm::min(cell_ed, gridResolution - 1);
 
     for (int z = cell_st.z; z <= cell_ed.z; ++z) {
         for (int y = cell_st.y; y <= cell_ed.y; ++y) {
             for (int x = cell_st.x; x <= cell_ed.x; ++x) {
-                glm::ivec3 offset = glm::ivec3(x, y, z);
-                glm::ivec3 ngrid_idx = bgrid_idx + glm::ivec3(x, y, z);
-                if (glm::any(glm::lessThan(ngrid_idx, glm::ivec3(0))) ||
-                    glm::any(glm::greaterThanEqual(
-                        ngrid_idx, glm::ivec3(gridResolution)))) {
-                    continue;
-                }
+                glm::ivec3 ngrid_idx = glm::ivec3(x, y, z);
                 int ngrid_id = gridIndex3Dto1D(ngrid_idx.x, ngrid_idx.y,
                                                ngrid_idx.z, gridResolution);
                 int start_idx = gridCellStartIndices[ngrid_id];
