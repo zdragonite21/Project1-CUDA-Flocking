@@ -49,12 +49,12 @@ void checkCUDAError(const char *msg, int line = -1) {
 
 #define AVOIDANCE 0
 #define TORUS 0
-#define MANDEBULB 0
+#define MANDELBULB 0
 
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 128
 
-#define radiusMul 4.0f
+#define radiusMul 2.0f
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -664,8 +664,8 @@ __device__ glm::vec3 computeVelocityChangeNeighborSearchCoherent(
     return bvel;
 }
 
-// IQ's formula for sdg box and torus and mandebulb and normals
-__device__ float mandebulb(glm::vec3 p) {
+// IQ's formula for sdg box and torus and mandelbulb and normals
+__device__ float mandelbulb(glm::vec3 p) {
     glm::vec3 w = p;
     float m = glm::dot(w, w);
 
@@ -701,10 +701,10 @@ __device__ glm::vec3 calcNormal(glm::vec3 pos, float px) {
     glm::vec2 e = glm::vec2(1.0, -1.0) * 0.5773f * 0.25f * px;
 
     return glm::normalize(
-        glm::vec3(e.x, e.y, e.y) * mandebulb(pos + glm::vec3(e.x, e.y, e.y)) +
-        glm::vec3(e.y, e.y, e.x) * mandebulb(pos + glm::vec3(e.y, e.y, e.x)) +
-        glm::vec3(e.y, e.x, e.y) * mandebulb(pos + glm::vec3(e.y, e.x, e.y)) +
-        glm::vec3(e.x) * mandebulb(pos + glm::vec3(e.x)));
+        glm::vec3(e.x, e.y, e.y) * mandelbulb(pos + glm::vec3(e.x, e.y, e.y)) +
+        glm::vec3(e.y, e.y, e.x) * mandelbulb(pos + glm::vec3(e.y, e.y, e.x)) +
+        glm::vec3(e.y, e.x, e.y) * mandelbulb(pos + glm::vec3(e.y, e.x, e.y)) +
+        glm::vec3(e.x) * mandelbulb(pos + glm::vec3(e.x)));
 }
 
 __device__ glm::vec4 sdgBox(glm::vec3 p, glm::vec3 b, float r) {
@@ -762,14 +762,14 @@ __device__ glm::vec3 computeSdfForces(glm::vec3 bpos) {
     return strength * dir * sdfForceScale;
 }
 
-__device__ glm::vec3 computeMandebulbForces(glm::vec3 bpos) {
+__device__ glm::vec3 computeMandelbulbForces(glm::vec3 bpos) {
     const float sdfForceScale = 100.0;
     const float influence_radius = 30;
     const float freq = 10.0;
     const float inv_scene_scale = 1.0 / scene_scale;
 
     glm::vec3 p = bpos * inv_scene_scale * 2.0f;
-    float sd = mandebulb(p);
+    float sd = mandelbulb(p);
     glm::vec3 nor = calcNormal(p, inv_scene_scale);
 
     float x = abs(sd) / influence_radius;
@@ -818,8 +818,8 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 #if TORUS
     bvel += computeSdfForces(bpos);
 #endif
-#if MANDEBULB
-    bvel += computeMandebulbForces(bpos);
+#if MANDELBULB
+    bvel += computeMandelbulbForces(bpos);
 #endif
 
     float speed2 = glm::length2(bvel);

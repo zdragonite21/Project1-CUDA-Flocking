@@ -16,6 +16,19 @@ Project 1 - Flocking**
 - 3 implementations: naive, uniform grid, **coherent** grid
 - extra credit: grid-looping optimization
 
+### setup
+
+This project was developed in VS Code and I used the CMake Tools Extension to build. Here are additional macros included at the top of each file:
+
+`kernel.cu`
+- `AVOIDANCE`: enables the bounds avoidance force
+- `TORUS`: enables the torus attraction force
+- `MANDELBULB`: enables the mandelbulb attraction force
+- `radiusMul`: blockSize = radiusMul * neighbor search radius
+
+`main.cpp`
+- `PROFILE_MODE`: enables profile mode (see below)
+
 ## boids
 
 boids are particles that independently follow 3 rules:
@@ -25,6 +38,18 @@ boids are particles that independently follow 3 rules:
 3. alignment
 
 And from there, emerges complex and beautiful behavior, resembling flocks of birds, or schools of fish.
+
+<video controls src="regular_boids.mp4" title="Title"></video>
+
+### optimizations
+#### uniform grid
+The bounds are partitioned into fixed sized cells, allowing boids to check other boids in neighboring cells, as opposed to pairwise checks (naive implementation).
+
+#### coherent grid
+This optimization reorders the position and velocity buffers, keeping boids in the same cell adjacent to each other in memory.
+
+#### smart grid looping
+Instead of checking the 8 or 27 surrounding cells, I compute a bounding box of cell indices that we need to check, which changes in according with `radiusMul`. 
 
 ### sdf forces
 
@@ -71,8 +96,13 @@ The gradient tells us the direction in which the SDF function increases the fast
 Now we can also use the SDF as an attractive force, creating effects like this.
 
 <p align="center">
+  <video controls src="boids_torus_100k_v3.mp4" title="Title"></video>
+  <i>torus sdf (100k boids)</i>
+</p>
+
+<p align="center">
   <video controls src="boids_covering.mp4" title="Title"></video>
-  <i>torus sdf</i>
+  <i>torus sdf (1 million boids)</i>
 </p>
 
 <p align="center">
@@ -85,13 +115,37 @@ Now we can also use the SDF as an attractive force, creating effects like this.
   <i>mandelbulb attraction</i>
 </p>
 
+
+<p align="center">
+  <img src="https://i0.wp.com/www.mandelbulb.com/wp-content/uploads/2013/04/identity_bulb4-960-blankBG.jpg">
+  <i>mandelbulb for reference</i>
+</p>
+
 ### performance analysis
 
-![alt text](<Average FPS vs Block Size (100k boids, avg over 5s, viz off).png>)
+I primarily used cuda timers for performance analysis and testing. If `PROFILE_MODE` is enabled, profiling is skipped for the first 3 seconds, then frames are profiled for 5 seconds total, and print the output. Every frame, only the simulation step is measured (in ms) using cuda timers.
+
+Performance is measured in average FPS, and the setup is included in the title of the charts.
+
+#### how # of boids affects performance
 
 ![alt text](<Average FPS vs Boid Count (128 Block Size, Viz Off, Avg Over 10s).png>)
 
+As seen in the graph above, the coherent grid scales better with the # of boids. At lower number of boids like 100 or 1k, the uniform grid performs similarly or even out-performs the coherent grid. This is likely due to the extra overhead required to run an additional kernel for reordering the position and velocity buffers for the boids. However, as the number of boids increase, the coherent grid performs better, since the benefit of boids in the same cell being adjacent in memory outweighs the overhead of the "gather" step. 
+
+Overall, the coherent implementation performs better (as expected) because boids in the same cell being adjacent in memory removes one additional level of indirection. In most cases (where boids are dense relative to the grid), the threads within a warp execute on boids within the same cell, which allow of speed-ups as the threads check the same neighbors, utilizing spatial locality in the global memory reads. In addition, in some cases, neighbor queries line up per thread, allow speedups from broadcasting memory to many threads within a warp.
+
+As expected, the uniform and coherent grid out performs the naive implementation, as we check fewer neighbors.
+
+![alt text](<Average FPS vs Block Size (100k boids, avg over 5s, viz off).png>)
+
+From my performance testing, 64 seems to be the sweet spot for this setup. If we are register limited, too large of a block size can lead to fewer hosted warps on each SM, leading to less throughput. Too small of a block size (32) moves the overhead of scheduling to SM level instead of subpartitions, and warps that could be operating within the same cell may be scheduled across multiple SMs, which under utilizes spatial locality.
+
 ![alt text](<Average FPS vs Cell Width (100k boids, avg over 5s, coherent grid, 128 block size, viz off).png>)
+
+In the 8 block method, checking more boids per block and fewer blocks better utilizes our coherent grid due to spatial locality. However, the 27 method is still a feasible method because it allows us to check fewer boids in dense situations as the 8 block method may have a small overlap with a cell and have to check all the boids encompassed in a larger cell.
+
+In our case, the block size of 8 performed better (2R). 
 
 ### cmake lists modification
 
