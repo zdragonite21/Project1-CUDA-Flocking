@@ -5,7 +5,7 @@ Project 1 - Flocking**
 
 <p align="center">
   <img src="images/boids_torus_100k_v3.gif" alt="animation of 100k boids forming a torus" width="800"><br>
-  <em>100,000 boids forming a torus, recorded from a fixed camera</em>
+  <em>100k boids forming a bagel</em>
 </p>
 
 ###  specs
