@@ -1,7 +1,7 @@
 **University of Pennsylvania, CIS 5650: GPU Programming and Architecture,
 Project 1 - Flocking**
 
-# The Everything Bagel
+# [The Everything Bagel](https://everythingeverywhere.fandom.com/wiki/Everything_Bagel)
 
 <p align="center">
   <img src="images/boids_torus_100k_v3.gif" alt="animation of 100k boids forming a torus" width="800"><br>
